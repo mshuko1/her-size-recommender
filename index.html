@@ -128,17 +128,33 @@
       label: "レディース トップス",
       dims: ["height", "chest", "waist"],
       sizes: [
-        { name: "M (1)", height: [156, 160], chest: [84, 89], waist: [60, 67] },
+        { name: "S (0)", height: [150, 155], chest: [78, 83], waist: [60, 60] },
+        { name: "M (1)", height: [156, 160], chest: [84, 89], waist: [64, 64] },
         { name: "L (2)", height: [161, 165], chest: [90, 95], waist: [67, 82] }
       ]
     }
   };
 
-  // 身長・体重からの参考サイズ（トップス全般、HERG1の目安表より）
-  var HEIGHT_WEIGHT_MATRIX = [
-    { height: [150, 159], bands: [[45,54,"1"],[55,64,"2"],[65,74,"2/4"],[75,84,"4"],[85,999,"5"]] },
-    { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6"]] }
-  ];
+  // 身長・体重からの参考サイズ（HERG1公式サイズガイドより。トップスとボトムスでマトリクスが異なる）
+  var HEIGHT_WEIGHT_MATRIX = {
+    mens_tops: [
+      { height: [150, 159], bands: [[45,54,"1"],[55,64,"2"],[65,74,"2/4"],[75,84,"4"],[85,999,"5"]] },
+      { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6"]] },
+      { height: [170, 179], bands: [[45,54,"4"],[55,64,"4"],[65,74,"5"],[75,84,"6"],[85,999,"6"]] },
+      { height: [180, 189], bands: [[55,64,"5"],[65,74,"6"],[75,84,"6"],[85,999,"6"]] }
+    ],
+    mens_bottoms: [
+      { height: [150, 159], bands: [[45,54,"0"],[55,64,"1"],[65,74,"2/4"],[75,84,"5"]] },
+      { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6/7"]] },
+      { height: [170, 179], bands: [[45,54,"4"],[55,64,"4"],[65,74,"5"],[75,84,"6"],[85,999,"6/7"]] },
+      { height: [180, 189], bands: [[65,74,"6"],[75,84,"7"],[85,999,"7/8"]] },
+      { height: [190, 999], bands: [[65,74,"7"],[75,84,"7"],[85,999,"8"]] }
+    ],
+    womens_tops: [
+      { height: [150, 159], bands: [[45,54,"1"],[55,64,"2"],[65,74,"2/4"],[75,84,"4"],[85,999,"5"]] },
+      { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6"]] }
+    ]
+  };
 
   function distanceFromRange(value, range) {
     if (value == null || isNaN(value)) return null;
@@ -171,9 +187,11 @@
     return best;
   }
 
-  function pickByHeightWeight(height, weight) {
+  function pickByHeightWeight(category, height, weight) {
     if (height == null || isNaN(height) || weight == null || isNaN(weight)) return null;
-    var row = HEIGHT_WEIGHT_MATRIX.find(function (r) {
+    var matrix = HEIGHT_WEIGHT_MATRIX[category];
+    if (!matrix) return null;
+    var row = matrix.find(function (r) {
       return height >= r.height[0] && height <= r.height[1];
     });
     if (!row) return null;
@@ -234,7 +252,7 @@
       noteParts.push("入力された数値はサイズの境界付近のため、商品によっては前後のサイズも検討してください。");
     }
 
-    var hw = pickByHeightWeight(height, weight);
+    var hw = pickByHeightWeight(category, height, weight);
     if (hw) {
       noteParts.push("身長・体重の目安表ではサイズ" + hw + "が参考値として示されています。");
     }
