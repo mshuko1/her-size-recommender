@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サイズ診断</title>
+<style>
+  .szrec {
+    --szrec-main: #111;
+    --szrec-accent: #b08968;
+    --szrec-bg: #faf9f7;
+    --szrec-border: #ddd;
+    max-width: 480px;
+    margin: 0 auto;
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    color: var(--szrec-main);
+    background: var(--szrec-bg);
+    border: 1px solid var(--szrec-border);
+    border-radius: 8px;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  .szrec * { box-sizing: border-box; }
+  .szrec h2 { font-size: 18px; margin: 0 0 16px; text-align: center; }
+  .szrec label { display: block; font-size: 13px; margin: 14px 0 4px; }
+  .szrec select, .szrec input[type="number"] {
+    width: 100%; padding: 10px; font-size: 15px;
+    border: 1px solid var(--szrec-border); border-radius: 4px; background: #fff;
+  }
+  .szrec .szrec-row { display: flex; gap: 12px; }
+  .szrec .szrec-row > div { flex: 1; }
+  .szrec button {
+    margin-top: 20px; width: 100%; padding: 12px; font-size: 15px;
+    background: var(--szrec-accent); color: #fff; border: none;
+    border-radius: 4px; cursor: pointer;
+  }
+  .szrec button:hover { opacity: .9; }
+  .szrec .szrec-result {
+    margin-top: 20px; padding: 16px; border-radius: 6px;
+    background: #fff; border: 1px solid var(--szrec-border); display: none;
+  }
+  .szrec .szrec-result.show { display: block; }
+  .szrec .szrec-size {
+    font-size: 28px; font-weight: bold; text-align: center; color: var(--szrec-accent);
+  }
+  .szrec .szrec-note { font-size: 13px; margin-top: 8px; line-height: 1.6; color: #444; }
+  .szrec .szrec-detail { font-size: 12px; margin-top: 10px; color: #777; }
+  .szrec .szrec-warn {
+    font-size: 12px; margin-top: 12px; padding: 8px; background: #fff8ec;
+    border: 1px solid #f0d9a8; border-radius: 4px; color: #7a5a13;
+  }
+</style>
+</head>
+<body>
+
+<div class="szrec">
+  <h2>あなたにぴったりのサイズを診断</h2>
+
+  <label for="szrec-category">アイテムカテゴリ</label>
+  <select id="szrec-category">
+    <option value="mens_tops">メンズ トップス</option>
+    <option value="mens_bottoms">メンズ ボトムス</option>
+    <option value="womens_tops">レディース トップス</option>
+  </select>
+
+  <div class="szrec-row">
+    <div>
+      <label for="szrec-height">身長 (cm)</label>
+      <input type="number" id="szrec-height" min="120" max="220" placeholder="例: 165">
+    </div>
+    <div>
+      <label for="szrec-weight">体重 (kg)<span style="opacity:.6"> 任意</span></label>
+      <input type="number" id="szrec-weight" min="30" max="180" placeholder="例: 55">
+    </div>
+  </div>
+
+  <div class="szrec-row" id="szrec-row-chest">
+    <div>
+      <label id="szrec-chest-label" for="szrec-chest">チェスト/バスト (cm)</label>
+      <input type="number" id="szrec-chest" min="50" max="160" placeholder="例: 88">
+    </div>
+    <div id="szrec-waist-wrap">
+      <label for="szrec-waist">ウエスト (cm)</label>
+      <input type="number" id="szrec-waist" min="40" max="150" placeholder="例: 68">
+    </div>
+  </div>
+
+  <button id="szrec-submit">サイズを診断する</button>
+
+  <div class="szrec-result" id="szrec-result">
+    <div class="szrec-size" id="szrec-size"></div>
+    <div class="szrec-note" id="szrec-note"></div>
+    <div class="szrec-detail" id="szrec-detail"></div>
+  </div>
+  <div class="szrec-warn">
+    ※ この診断はHERG1サイズガイドの公開情報をもとにした参考目安です。商品ごとに着用感が異なるため、最終的なサイズ選びに迷う場合は公式LINEのサイズ相談もご利用ください。
+  </div>
+</div>
+
+<script>
+(function () {
+  // ---- サイズ表データ（HERG1公式サイズガイドより, 2026-06時点）----
+  // 値は cm。範囲外の場合は最も近いサイズを提示します。
+  var SIZE_TABLES = {
+    mens_tops: {
+      label: "メンズ トップス",
+      dims: ["height", "chest"],
+      sizes: [
+        { name: "S (3)",  height: [163, 168], chest: [89, 95] },
+        { name: "M (4)",  height: [169, 174], chest: [93, 99] },
+        { name: "L (5)",  height: [175, 180], chest: [97, 103] },
+        { name: "XL (6)", height: [181, 186], chest: [101, 107] }
+      ]
+    },
+    mens_bottoms: {
+      label: "メンズ ボトムス",
+      dims: ["waist"],
+      sizes: [
+        { name: "S (3)",   waist: [76, 81] },
+        { name: "M (4)",   waist: [80, 85] },
+        { name: "L (5)",   waist: [84, 89] },
+        { name: "XL (6)",  waist: [89, 94] },
+        { name: "2XL (7)", waist: [94, 99] },
+        { name: "3XL (8)", waist: [99, 104] }
+      ]
+    },
+    womens_tops: {
+      label: "レディース トップス",
+      dims: ["height", "chest", "waist"],
+      sizes: [
+        { name: "M (1)", height: [156, 160], chest: [84, 89], waist: [60, 67] },
+        { name: "L (2)", height: [161, 165], chest: [90, 95], waist: [67, 82] }
+      ]
+    }
+  };
+
+  // 身長・体重からの参考サイズ（トップス全般、HERG1の目安表より）
+  var HEIGHT_WEIGHT_MATRIX = [
+    { height: [150, 159], bands: [[45,54,"1"],[55,64,"2"],[65,74,"2/4"],[75,84,"4"],[85,999,"5"]] },
+    { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6"]] }
+  ];
+
+  function distanceFromRange(value, range) {
+    if (value == null || isNaN(value)) return null;
+    if (value < range[0]) return range[0] - value;
+    if (value > range[1]) return value - range[1];
+    return 0;
+  }
+
+  function pickSize(category, input) {
+    var table = SIZE_TABLES[category];
+    var best = null;
+    table.sizes.forEach(function (size) {
+      var totalDist = 0, usedDims = 0, exact = true;
+      table.dims.forEach(function (dim) {
+        if (size[dim] == null) return;
+        var val = input[dim];
+        if (val == null || isNaN(val)) return;
+        var d = distanceFromRange(val, size[dim]);
+        if (d === null) return;
+        if (d > 0) exact = false;
+        var rangeWidth = size[dim][1] - size[dim][0] || 1;
+        totalDist += d / rangeWidth;
+        usedDims++;
+      });
+      var score = usedDims > 0 ? totalDist / usedDims : Infinity;
+      if (!best || score < best.score) {
+        best = { size: size, score: score, exact: exact, usedDims: usedDims };
+      }
+    });
+    return best;
+  }
+
+  function pickByHeightWeight(height, weight) {
+    if (height == null || isNaN(height) || weight == null || isNaN(weight)) return null;
+    var row = HEIGHT_WEIGHT_MATRIX.find(function (r) {
+      return height >= r.height[0] && height <= r.height[1];
+    });
+    if (!row) return null;
+    var band = row.bands.find(function (b) { return weight >= b[0] && weight <= b[1]; });
+    return band ? band[2] : null;
+  }
+
+  function updateFieldsForCategory(category) {
+    var chestWrap = document.getElementById("szrec-row-chest");
+    var chestLabel = document.getElementById("szrec-chest-label");
+    var waistWrap = document.getElementById("szrec-waist-wrap");
+    if (category === "mens_bottoms") {
+      chestWrap.querySelector("div").style.display = "none";
+      waistWrap.style.display = "block";
+    } else {
+      chestWrap.querySelector("div").style.display = "block";
+      waistWrap.style.display = category === "womens_tops" ? "block" : "none";
+      chestLabel.textContent = category === "mens_tops" ? "チェスト (cm)" : "バスト (cm)";
+    }
+  }
+
+  var categorySelect = document.getElementById("szrec-category");
+  categorySelect.addEventListener("change", function () {
+    updateFieldsForCategory(categorySelect.value);
+  });
+  updateFieldsForCategory(categorySelect.value);
+
+  document.getElementById("szrec-submit").addEventListener("click", function () {
+    var category = categorySelect.value;
+    var height = parseFloat(document.getElementById("szrec-height").value);
+    var weight = parseFloat(document.getElementById("szrec-weight").value);
+    var chest = parseFloat(document.getElementById("szrec-chest").value);
+    var waist = parseFloat(document.getElementById("szrec-waist").value);
+
+    var input = { height: height, chest: chest, waist: waist };
+    var result = pickSize(category, input);
+
+    var resultBox = document.getElementById("szrec-result");
+    var sizeEl = document.getElementById("szrec-size");
+    var noteEl = document.getElementById("szrec-note");
+    var detailEl = document.getElementById("szrec-detail");
+
+    if (!result || result.usedDims === 0) {
+      resultBox.classList.add("show");
+      sizeEl.textContent = "—";
+      noteEl.textContent = "診断に必要な数値を入力してください。";
+      detailEl.textContent = "";
+      return;
+    }
+
+    resultBox.classList.add("show");
+    sizeEl.textContent = "おすすめサイズ: " + result.size.name;
+
+    var noteParts = [];
+    if (result.exact) {
+      noteParts.push("入力された数値はこのサイズの標準範囲内です。");
+    } else {
+      noteParts.push("入力された数値はサイズの境界付近のため、商品によっては前後のサイズも検討してください。");
+    }
+
+    var hw = pickByHeightWeight(height, weight);
+    if (hw) {
+      noteParts.push("身長・体重の目安表ではサイズ" + hw + "が参考値として示されています。");
+    }
+    noteEl.textContent = noteParts.join(" ");
+
+    var detailParts = [];
+    if (!isNaN(height)) detailParts.push("身長 " + height + "cm");
+    if (!isNaN(weight)) detailParts.push("体重 " + weight + "kg（参考表示のみ）");
+    if (!isNaN(chest)) detailParts.push((category === "mens_tops" ? "チェスト " : "バスト ") + chest + "cm");
+    if (!isNaN(waist)) detailParts.push("ウエスト " + waist + "cm");
+    detailEl.textContent = "入力値: " + detailParts.join(" / ");
+  });
+})();
+</script>
+
+</body>
+</html>
