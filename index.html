@@ -61,15 +61,17 @@
     <option value="mens_tops">メンズ トップス</option>
     <option value="mens_bottoms">メンズ ボトムス</option>
     <option value="womens_tops">レディース トップス</option>
+    <option value="womens_bottoms">レディース ボトムス</option>
+    <option value="belt">ベルト</option>
   </select>
 
-  <div class="szrec-row">
+  <div class="szrec-row" id="szrec-row-heightweight">
     <div>
       <label for="szrec-height">身長 (cm)</label>
       <input type="number" id="szrec-height" min="120" max="220" placeholder="例: 165">
     </div>
     <div>
-      <label for="szrec-weight">体重 (kg)<span style="opacity:.6"> 任意</span></label>
+      <label for="szrec-weight">体重 (kg)<span id="szrec-weight-badge" style="opacity:.6"> 任意</span></label>
       <input type="number" id="szrec-weight" min="30" max="180" placeholder="例: 55">
     </div>
   </div>
@@ -105,6 +107,7 @@
     mens_tops: {
       label: "メンズ トップス",
       dims: ["height", "chest"],
+      fields: { chest: true, chestLabel: "チェスト (cm)", waist: false },
       sizes: [
         { name: "S (3)",  height: [163, 168], chest: [89, 95] },
         { name: "M (4)",  height: [169, 174], chest: [93, 99] },
@@ -115,6 +118,7 @@
     mens_bottoms: {
       label: "メンズ ボトムス",
       dims: ["waist"],
+      fields: { chest: false, waist: true },
       sizes: [
         { name: "S (3)",   waist: [76, 81] },
         { name: "M (4)",   waist: [80, 85] },
@@ -127,10 +131,29 @@
     womens_tops: {
       label: "レディース トップス",
       dims: ["height", "chest", "waist"],
+      fields: { chest: true, chestLabel: "バスト (cm)", waist: true },
       sizes: [
         { name: "S (0)", height: [150, 155], chest: [78, 83], waist: [60, 60] },
         { name: "M (1)", height: [156, 160], chest: [84, 89], waist: [64, 64] },
         { name: "L (2)", height: [161, 165], chest: [90, 95], waist: [67, 82] }
+      ]
+    },
+    womens_bottoms: {
+      label: "レディース ボトムス",
+      dims: [],
+      matrixOnly: true,
+      fields: { chest: false, waist: false }
+    },
+    belt: {
+      label: "ベルト",
+      dims: ["waist"],
+      fields: { chest: false, waist: true, hideHeightWeight: true },
+      sizes: [
+        { name: "S",   waist: [70, 78] },
+        { name: "M",   waist: [78, 85] },
+        { name: "L",   waist: [85, 93] },
+        { name: "XL",  waist: [93, 100] },
+        { name: "XXL", waist: [100, 107] }
       ]
     }
   };
@@ -155,6 +178,8 @@
       { height: [160, 169], bands: [[45,54,"1"],[55,64,"2/4"],[65,74,"4"],[75,84,"5"],[85,999,"6"]] }
     ]
   };
+  // ボトムスの身長×体重マトリクスは男女共通（サイトの「ボトムス サイズ目安」表は性別表記なし）
+  HEIGHT_WEIGHT_MATRIX.womens_bottoms = HEIGHT_WEIGHT_MATRIX.mens_bottoms;
 
   function distanceFromRange(value, range) {
     if (value == null || isNaN(value)) return null;
@@ -200,17 +225,22 @@
   }
 
   function updateFieldsForCategory(category) {
-    var chestWrap = document.getElementById("szrec-row-chest");
+    var config = SIZE_TABLES[category];
+    var fields = config.fields || {};
+    var heightWeightRow = document.getElementById("szrec-row-heightweight");
+    var chestRow = document.getElementById("szrec-row-chest");
+    var chestFieldWrap = chestRow.querySelector("div:first-child");
     var chestLabel = document.getElementById("szrec-chest-label");
     var waistWrap = document.getElementById("szrec-waist-wrap");
-    if (category === "mens_bottoms") {
-      chestWrap.querySelector("div").style.display = "none";
-      waistWrap.style.display = "block";
-    } else {
-      chestWrap.querySelector("div").style.display = "block";
-      waistWrap.style.display = category === "womens_tops" ? "block" : "none";
-      chestLabel.textContent = category === "mens_tops" ? "チェスト (cm)" : "バスト (cm)";
-    }
+    var weightBadge = document.getElementById("szrec-weight-badge");
+
+    heightWeightRow.style.display = fields.hideHeightWeight ? "none" : "flex";
+    weightBadge.textContent = config.matrixOnly ? "" : " 任意";
+
+    chestFieldWrap.style.display = fields.chest ? "block" : "none";
+    if (fields.chest) chestLabel.textContent = fields.chestLabel || "チェスト/バスト (cm)";
+    waistWrap.style.display = fields.waist ? "block" : "none";
+    chestRow.style.display = (fields.chest || fields.waist) ? "flex" : "none";
   }
 
   var categorySelect = document.getElementById("szrec-category");
@@ -221,18 +251,37 @@
 
   document.getElementById("szrec-submit").addEventListener("click", function () {
     var category = categorySelect.value;
+    var config = SIZE_TABLES[category];
     var height = parseFloat(document.getElementById("szrec-height").value);
     var weight = parseFloat(document.getElementById("szrec-weight").value);
     var chest = parseFloat(document.getElementById("szrec-chest").value);
     var waist = parseFloat(document.getElementById("szrec-waist").value);
 
-    var input = { height: height, chest: chest, waist: waist };
-    var result = pickSize(category, input);
-
     var resultBox = document.getElementById("szrec-result");
     var sizeEl = document.getElementById("szrec-size");
     var noteEl = document.getElementById("szrec-note");
     var detailEl = document.getElementById("szrec-detail");
+
+    if (config.matrixOnly) {
+      var code = pickByHeightWeight(category, height, weight);
+      resultBox.classList.add("show");
+      if (!code) {
+        sizeEl.textContent = "—";
+        noteEl.textContent = "身長と体重を両方入力してください。";
+        detailEl.textContent = "";
+        return;
+      }
+      sizeEl.textContent = "おすすめサイズ: " + code;
+      noteEl.textContent = "このカテゴリはHERG1公式サイズガイドの「身長・体重目安表」のみで案内されており、ウエスト/ヒップの実寸データは公開されていません。「2/4」のように複数表示される場合は体型により前後しますので、商品ページの実寸もあわせてご確認ください。";
+      var mDetailParts = [];
+      if (!isNaN(height)) mDetailParts.push("身長 " + height + "cm");
+      if (!isNaN(weight)) mDetailParts.push("体重 " + weight + "kg");
+      detailEl.textContent = "入力値: " + mDetailParts.join(" / ");
+      return;
+    }
+
+    var input = { height: height, chest: chest, waist: waist };
+    var result = pickSize(category, input);
 
     if (!result || result.usedDims === 0) {
       resultBox.classList.add("show");
@@ -259,10 +308,10 @@
     noteEl.textContent = noteParts.join(" ");
 
     var detailParts = [];
-    if (!isNaN(height)) detailParts.push("身長 " + height + "cm");
-    if (!isNaN(weight)) detailParts.push("体重 " + weight + "kg（参考表示のみ）");
-    if (!isNaN(chest)) detailParts.push((category === "mens_tops" ? "チェスト " : "バスト ") + chest + "cm");
-    if (!isNaN(waist)) detailParts.push("ウエスト " + waist + "cm");
+    if (!config.fields.hideHeightWeight && !isNaN(height)) detailParts.push("身長 " + height + "cm");
+    if (!config.fields.hideHeightWeight && !isNaN(weight)) detailParts.push("体重 " + weight + "kg（参考表示のみ）");
+    if (config.fields.chest && !isNaN(chest)) detailParts.push(config.fields.chestLabel.replace(" (cm)", " ") + chest + "cm");
+    if (config.fields.waist && !isNaN(waist)) detailParts.push("ウエスト " + waist + "cm");
     detailEl.textContent = "入力値: " + detailParts.join(" / ");
   });
 })();
